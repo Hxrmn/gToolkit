@@ -36,11 +36,28 @@ function mStateMachine:RunState( state )
 
 	if not state then return end
 
+	local stateSubCall = self.__subCalls[self.__currentState]
+	for call, params in pairs(stateSubCall) do
+
+		if params.time < self:GetTime() then
+
+			stateSubCall[call] = nil
+
+			self.__nextStateArgs = params.args
+
+			self:EnterState( call )
+			self:RunState( self.__currentState )
+			return
+
+		end
+
+	end
+
 	self.__isNewStateCall = self.__stateCall == false
 	self.__isStateCall = true
 	self.__stateReset = false
 
-	local b, e = pcall( self.__states[state], unpack( self.__stateArgs ) )
+	local b, e = pcall( self.__states[state], self, unpack( self.__stateArgs ) )
 
 	if not self.__stateReset then
 		
@@ -83,7 +100,7 @@ function mStateMachine:EnterState( state )
 	self.__currentState = state
 	self.__nextThink = nil
 	self.__stateCall = false
-	self.__subCalls[state] = {}
+	self.__subCalls[state] = self.__subCalls[state] or {}
 	self.__stateArgs = self.__nextStateArgs
 	self.__nextStateArgs = nil
 	self.__stateStart = wstart
@@ -137,13 +154,7 @@ function mStateMachine.__call( self, state, time, ... )
 
 	if self.__isStateCall and time and time ~= 0 then
 		if not stateSubCall[state] then
-			stateSubCall[state] = delay
-		else
-			if stateSubCall[state] > delay then
-				stateSubCall[state] = delay
-			else
-				return
-			end
+			stateSubCall[state] = { time = delay, args = {...} }
 		end
 	end
 
@@ -154,6 +165,7 @@ function mStateMachine.__call( self, state, time, ... )
 	if not time or time <= 0 then
 		self.__nextThink = nil
 		self:EnterState( state, 0 )
+		self:RunState( self.__currentState )
 		return
 	end
 
