@@ -54,11 +54,19 @@ function mStateMachine:RunState( state )
 
 end
 
-function mStateMachine:Run()
+function mStateMachine:GetTime()
+	return self.__utime or CurTime()
+end
+
+function mStateMachine:Run(time)
+
+	if time then
+		self.__utime = time
+	end
 
 	self:RunState( self.__currentState )
 
-	if self.__nextThink == nil or self.__nextThink > CurTime() then return end	
+	if self.__nextThink == nil or self.__nextThink > self:GetTime() then return end	
 	
 	self:EnterState( self.__nextState )
 
@@ -67,10 +75,10 @@ end
 function mStateMachine:EnterState( state )
 
 	if self.__currentState ~= state or not self.__wasCalledInState then
-		self.__staticStart = CurTime()
+		self.__staticStart = self:GetTime()
 	end
 
-	local wstart = self.__nextThink or CurTime()
+	local wstart = self.__nextThink or self:GetTime()
 
 	self.__currentState = state
 	self.__nextThink = nil
@@ -87,8 +95,8 @@ function mStateMachine.__index( self, key )
 
 	if key == "run" then return self.__runwrapper end
 	if key == "started" then return self.__isNewStateCall end
-	if key == "time" then return CurTime() - self.__stateStart end
-	if key == "rtime" then return CurTime() - self.__staticStart end
+	if key == "time" then return self:GetTime() - self.__stateStart end
+	if key == "rtime" then return self:GetTime() - self.__staticStart end
 	if key == "current" then return self.__currentState end
 
 	local g = rawget( mStateMachine, key )
@@ -124,8 +132,7 @@ function mStateMachine.__call( self, state, time, ... )
 		return 
 	end
 
-	local curtime = CurTime()
-	local delay = curtime + ( time or 0 )
+	local delay = self:GetTime() + ( time or 0 )
 	local stateSubCall = self.__subCalls[self.__currentState]
 
 	if self.__isStateCall and time and time ~= 0 then
