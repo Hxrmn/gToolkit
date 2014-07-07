@@ -165,7 +165,9 @@ function mStateMachine.__call( self, state, time, ... )
 	if not time or time <= 0 then
 		self.__nextThink = nil
 		self:EnterState( state, 0 )
-		self:RunState( self.__currentState )
+		if self.__isStateCall then
+			self:RunState( self.__currentState )
+		end
 		return
 	end
 
