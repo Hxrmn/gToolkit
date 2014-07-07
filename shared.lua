@@ -1,3 +1,8 @@
+--DATA
+include("data/data_serialize.lua")
+
+AddCSLuaFile("data/data_serialize.lua")
+
 --NETWORKING
 include("network/net_tools.lua")
 include("network/net_rpc.lua")
