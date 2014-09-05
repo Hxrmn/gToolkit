@@ -1,6 +1,16 @@
+function package.inherit(p)
+	return function(m) for k,v in pairs(p) do m[k] = v end end
+end
+
 --DATA
+include("data/data_binary.lua")
+include("data/data_base64.lua")
+include("data/data_lzw.lua")
 include("data/data_serialize.lua")
 
+AddCSLuaFile("data/data_binary.lua")
+AddCSLuaFile("data/data_base64.lua")
+AddCSLuaFile("data/data_lzw.lua")
 AddCSLuaFile("data/data_serialize.lua")
 
 --NETWORKING
