@@ -80,18 +80,11 @@ function float2str(value)
 end
 
 function str2float(str)
-	local s = 1
-	local fr = string.byte(str, 3) % 128
-	for i = 2, 1, -1 do 
-		fr = lshift(fr, 8) + string.byte(str, i) 
-	end
-	
-	if string.byte(str, 4) > 127 then s = -1 end
-	local exp = (string.byte(str, 4) % 128) * 2 + math.floor(string.byte(str, 3) / 128)
-	if exp == 0 then return 0 end
-	
-	fr = (math.ldexp(fr, -23) + 1) * s
-	return math.ldexp(fr, exp - 127)
+	local b4, b3 = str:byte(4), str:byte(3)
+	local fr = lshift(band(b3, 0x7F), 16) + sblsh(str, 2, 8) + sblsh(str, 1, 0)
+	local exp = band(b4, 0x7F) * 2 + rshift(b3, 7)
+	local s = ((b4 > 127) and -1 or 1)
+	return exp == 0 and 0 or math.ldexp((math.ldexp(fr, -23) + 1) * s, exp - 127)
 end
 
 function int2str(value, signed)
@@ -126,3 +119,5 @@ end
 
 --[[print(MAX_UNSIGNED_LONG)
 print(str2int( int2str(MAX_UNSIGNED_LONG, false), false ) )]]
+
+print(str2float( float2str(1.125) ))
