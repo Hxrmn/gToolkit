@@ -1,5 +1,4 @@
 --BINARY FUNCTIONS
---IEEE float conversion adapted from http://snippets.luacode.org/snippets/IEEE_float_conversion_144
 
 print("DATA BINARY")
 
@@ -20,6 +19,16 @@ MAX_UNSIGNED_LONG = 4294967295
 local function sbrsh(v, b) return string.char(band(rshift(v, b), 0xFF)) end
 local function sblsh(s, e, b) return lshift(s:byte(e), b) end
 
+local function printBin(v, bits)
+	local s = ""
+	for i=1, bits do
+		s = s .. band(v, 1)
+		v = rshift(v, 1)
+	end
+	print(string.reverse(s))
+end
+
+--[[
 function float2str(value)
 	local s=value<0 and 1 or 0
 	if math.abs(value)==1/0 then return (s==1 and "\0\0\0\255" or "\0\0\0\127") end
@@ -44,6 +53,45 @@ function str2float(str)
 	end
 
 	return n
+end
+]]
+
+local INF = 1/0
+function float2str(value)
+	local s=value<0 and 1 or 0
+	if math.abs(value)==INF then return (s==1 and "\0\0\0\255" or "\0\0\0\127") end
+	if value~=value then return "\170\170\170\255" end
+
+	local fr, exp = 0, 0
+	if value ~= 0.0 then
+		fr,exp=math.frexp(math.abs(value))
+		fr = math.floor(math.ldexp(fr, 24))
+		exp = exp + 126
+	end
+	local ec = band(lshift(exp, 7), 0x80)
+	local mc = band(rshift(fr, 16), 0x7f)
+
+	local a = sbrsh(fr, 0)
+	local b = sbrsh(fr, 8)
+	local c = string.char( bor(ec, mc) )
+	local d = string.char( bor(s==1 and 0x80 or 0x00, rshift(exp, 1)) )
+
+	return a .. b .. c .. d
+end
+
+function str2float(str)
+	local s = 1
+	local fr = string.byte(str, 3) % 128
+	for i = 2, 1, -1 do 
+		fr = lshift(fr, 8) + string.byte(str, i) 
+	end
+	
+	if string.byte(str, 4) > 127 then s = -1 end
+	local exp = (string.byte(str, 4) % 128) * 2 + math.floor(string.byte(str, 3) / 128)
+	if exp == 0 then return 0 end
+	
+	fr = (math.ldexp(fr, -23) + 1) * s
+	return math.ldexp(fr, exp - 127)
 end
 
 function int2str(value, signed)
