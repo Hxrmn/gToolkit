@@ -76,5 +76,5 @@ function str2byte(str, signed)
 	return signed and (MIN_SIGNED_BYTE + v) or v
 end
 
-print(MAX_UNSIGNED_LONG)
-print(str2int( int2str(MAX_UNSIGNED_LONG, false), false ) )
+--[[print(MAX_UNSIGNED_LONG)
+print(str2int( int2str(MAX_UNSIGNED_LONG, false), false ) )]]

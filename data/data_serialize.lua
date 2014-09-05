@@ -1,96 +1,184 @@
-print("DATA")
+print("DATA SERIALIZE")
 
 module("zdata", package.seeall)
 
 --SERIALIZATION
 --Coded by Zak Blystone
 
-local function getValueString(t)
+local ENTITY_BITS = 12
+USE_BITSTREAM = true
+
+DT_NULL = 0
+DT_BYTE = 1
+DT_UBYTE = 2
+DT_SHORT = 3
+DT_USHORT = 4
+DT_INT = 5
+DT_UINT = 6
+DT_FLOAT = 7
+DT_VECTOR = 8
+DT_CVECTOR = 9
+DT_ENTITY = 10
+DT_STRING = 11
+DT_KEYS = 12
+DT_TABLE = 13
+
+local typenames = {
+	"DT_NULL",
+	"DT_BYTE",
+	"DT_UBYTE",
+	"DT_SHORT",
+	"DT_USHORT",
+	"DT_INT",
+	"DT_UINT",
+	"DT_FLOAT",
+	"DT_VECTOR",
+	"DT_CVECTOR",
+	"DT_ENTITY",
+	"DT_STRING",
+	"DT_KEYS",
+	"DT_TABLE",
+}
+
+local function DTName(d)
+	return typenames[d+1] or "DT_UNKNOWN"
+end
+
+DT_STATUSBITS = 4
+
+local function getValueString(t, buf)
 	local ttype = type(t)
 
+	local function numtype(t, v)
+		buf:WriteBits(t, DT_STATUSBITS)
+		if t == DT_BYTE then buf:WriteByte(v, true)
+		elseif t == DT_UBYTE then buf:WriteByte(v, false)
+		elseif t == DT_SHORT then buf:WriteShort(v, true)
+		elseif t == DT_USHORT then buf:WriteShort(v, false)
+		elseif t == DT_INT then buf:WriteInt(v, true)
+		elseif t == DT_UINT then buf:WriteInt(v, false)
+		elseif t == DT_FLOAT then buf:WriteFloat(v)
+		else print("UNKNOWN TYPE: " .. tostring(t) .. " [" .. v .. "]") end
+	end
+
 	if ttype == "table" then
-		local str,keys = "T", false
+		buf:WriteBits(DT_TABLE, DT_STATUSBITS)
+		local keys = false
 		local n = 0 for k,v in pairs(t) do n = n + 1 end
-		str = str .. getValueString(n)
+		getValueString(n, buf)
 
 		local mrk = {}
 		for k,v in ipairs(t) do
-			str = str .. getValueString(v)
+			getValueString(v, buf)
 			mrk[k] = true
 		end
 		
 		for k,v in pairs(t) do
-			if not mrk[k] and not keys then str = str .. 'K' keys = true end
-			if not mrk[k] then str = str .. getValueString(k) .. getValueString(v) end
+			if not mrk[k] and not keys then buf:WriteBits(DT_KEYS, DT_STATUSBITS) keys = true end
+			if not mrk[k] then getValueString(k, buf) getValueString(v, buf) end
 		end
-		return str
 	elseif ttype == "number" then
 		local int = math.floor(t) == t
 		if int then
-			if t <= MAX_SIGNED_BYTE and t >= MIN_SIGNED_BYTE then return "B" .. byte2str(t, true)
-			elseif t >= 0 and t <= MAX_UNSIGNED_BYTE then return "C" .. byte2str(t, false) 
-			elseif t <= MAX_SIGNED_SHORT and t >= MIN_SIGNED_SHORT then return "W" .. short2str(t, true)
-			elseif t >= 0 and t <= MAX_UNSIGNED_SHORT then return "D" .. short2str(t, false) 
-			elseif t <= MAX_SIGNED_LONG and t >= MIN_SIGNED_LONG then return "I" .. int2str(t, true)
-			elseif t >= 0 and t <= MAX_UNSIGNED_LONG then return "U" .. int2str(t, false)
-			else return "F" .. str2float(t)
+			if t <= MAX_SIGNED_BYTE and t >= MIN_SIGNED_BYTE then numtype(DT_BYTE, t)
+			elseif t >= 0 and t <= MAX_UNSIGNED_BYTE then numtype(DT_UBYTE, t)
+			elseif t <= MAX_SIGNED_SHORT and t >= MIN_SIGNED_SHORT then numtype(DT_SHORT, t)
+			elseif t >= 0 and t <= MAX_UNSIGNED_SHORT then numtype(DT_USHORT, t)
+			elseif t <= MAX_SIGNED_LONG and t >= MIN_SIGNED_LONG then numtype(DT_INT, t)
+			elseif t >= 0 and t <= MAX_UNSIGNED_LONG then numtype(DT_UINT, t)
+			else numtype(DT_FLOAT, t)
 			end
 		else
-			return "F" .. float2str(t)
+			return numtype(DT_FLOAT, t)
+		end
+	elseif ttype == "Vector" then
+		--if true or math.floor(t.x) == t.x or math.floor(t.y) == t.y or math.floor(t.z) == t.z then
+			buf:WriteBits(DT_CVECTOR, DT_STATUSBITS)
+			getValueString(t.x, buf)
+			getValueString(t.y, buf)
+			getValueString(t.z, buf)
+		--[[else
+			buf:WriteBits(DT_VECTOR, DT_STATUSBITS)
+			buf:WriteFloat(t.x)
+			buf:WriteFloat(t.y)
+			buf:WriteFloat(t.z)
+		end]]
+	elseif ttype == "Entity" then
+		if IsValid(t) and t:EntIndex() >= 0 then
+			buf:WriteBits(DT_ENTITY, DT_STATUSBITS)
+			buf:WriteBits(t:EntIndex(), ENTITY_BITS)
+		else
+			buf:WriteBits(DT_NULL, DT_STATUSBITS)
 		end
 	elseif ttype == "string" then
-		return "S" .. t .. '\0'
+		buf:WriteBits(DT_STRING, DT_STATUSBITS)
+		local l = string.len(t)
+		getValueString(l, buf)
+		buf:WriteStr(t)
 	else
-		return "N"
+		buf:WriteBits(DT_NULL, DT_STATUSBITS)
 	end
 end
 
-local function getStringValue(str)
-	local ttype = string.sub(str,1,1)
-	local data = string.sub(str,2,string.len(str))
+local function getStringValue(buf)
+	local ttype = buf:ReadBits(DT_STATUSBITS)
 
-	if ttype == 'T' then
-		local v,data = nil, data
+	--print("TYPE: " .. DTName(ttype))
+
+	local function numtype(t)
+		if t == DT_BYTE then return buf:ReadByte(true) end
+		if t == DT_UBYTE then return buf:ReadByte(false) end
+		if t == DT_SHORT then return buf:ReadShort(true) end
+		if t == DT_USHORT then return buf:ReadShort(false) end
+		if t == DT_INT then return buf:ReadInt(true) end
+		if t == DT_UINT then return buf:ReadInt(false) end
+		if t == DT_FLOAT then return buf:ReadFloat() end
+	end
+
+	if ttype == DT_TABLE then
 		local t = {}
-		v,data = getStringValue(data)
-
-		local n = v
+		local n = getStringValue(buf)
 		local keys = false
 		for i=1, n do
-			if string.sub(data,1,1) == 'K' then
-				data = string.sub(data,2,string.len(data))
-				keys = true
-			end
+			local v,f = getStringValue(buf)
+			if f == 'K' then keys = true end
 
 			if keys then
-				v,data = getStringValue(data)
-				local key = v
-
-				v,data = getStringValue(data)
-				t[key] = v
+				local key = getStringValue(buf)
+				t[key] = getStringValue(buf)
 			else
-				v,data = getStringValue(data)
 				table.insert(t, v)
 			end
 		end
 		return t, data
-	elseif ttype == 'N' then return nil, data
-	elseif ttype == 'B' then return str2byte(data, true), string.sub(data,2,string.len(data))
-	elseif ttype == 'C' then return str2byte(data, false), string.sub(data,2,string.len(data))
-	elseif ttype == 'W' then return str2short(data, true), string.sub(data,3,string.len(data))
-	elseif ttype == 'D' then return str2short(data, false), string.sub(data,3,string.len(data))
-	elseif ttype == 'I' then return str2int(data, true), string.sub(data,5,string.len(data))
-	elseif ttype == 'U' then return str2int(data, false), string.sub(data,5,string.len(data))
-	elseif ttype == 'F' then return str2float(data), string.sub(data,5,string.len(data))
-	elseif ttype == 'S' then
-		local e = string.find(data,'\0')
-		return string.sub(data,1,e-1), string.sub(data,1+e,string.len(data))
+	elseif ttype == DT_KEYS then return nil, 'K'
+	elseif ttype == DT_NULL then return nil
+	elseif ttype >= DT_BYTE and ttype <= DT_FLOAT then return numtype(ttype)
+	elseif ttype == DT_CVECTOR then
+		local x = getStringValue(buf)
+		local y = getStringValue(buf)
+		local z = getStringValue(buf)
+		return Vector(x,y,z)
+	--[[elseif ttype == DT_VECTOR then
+		return Vector(buf:ReadFloat(), buf:ReadFloat(), buf:ReadFloat())]]
+	elseif ttype == DT_ENTITY then
+		local index = buf:ReadBits(ENTITY_BITS)
+		return ents.GetByIndex(index)
+	elseif ttype == DT_STRING then
+		local l = getStringValue(buf)
+		local s = buf:ReadStr(l)
+		return s
 	end
 end
 
 function serialize(t, binary)
-	local vstr = getValueString(t)
+	local vout = out_stream(USE_BITSTREAM)
+	getValueString(t, vout)
+
+	local vstr = vout:GetString()
 	local compressed = lzw_encode(vstr)
+
+	print("COMPRESSED SIZE: " .. string.len(vstr) .. " -> " .. string.len(compressed))
 
 	if not binary then
 		local lzwVer = base64_encode(compressed)
@@ -120,15 +208,34 @@ function deserialize(str, binary)
 	local mode = string.sub(str,1,1)
 	str = string.sub(str,2,string.len(str))
 
-	if not binary then
-		str = base64_decode(str)
-	end
-
+	if not binary then str = base64_decode(str) end
+	local vin = in_stream(USE_BITSTREAM)
 	if mode == 'C' then
-		local vstr = lzw_decode(str)
-		return getStringValue(vstr)
+		vin:LoadString(lzw_decode(str))
 	elseif mode == 'R' then
-		return getStringValue(str)		
+		vin:LoadString(str)	
 	end
+	return getStringValue(vin)	
 
 end
+
+--[[local tab = {}
+for k,v in pairs(ents.GetAll()) do
+	table.insert(tab, v:GetClass())
+end
+
+local ser = serialize(tab, false)
+local dser = deserialize(ser, false)
+
+PrintTable(dser)
+
+print(print(ser))
+
+print("DATA SIZE: " .. string.len(ser))
+
+local s = ""
+for k,v in pairs(ents.GetAll()) do
+	s = s .. v:GetClass()
+end
+
+print("ORIG DATA SIZE: " .. string.len(s))]]
