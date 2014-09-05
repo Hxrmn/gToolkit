@@ -47,13 +47,13 @@ function str2float(str)
 end
 
 function int2str(value, signed)
-	if signed then value = value - MIN_SIGNED_LONG end
+	if not signed then value = value + MAX_SIGNED_LONG + 1 end
 	return sbrsh(value,24) .. sbrsh(value,16) .. sbrsh(value,8) .. sbrsh(value, 0)
 end
 
 function str2int(str, signed)
-	local v = sblsh(str, 1, 24) + sblsh(str, 1, 16) + sblsh(str, 1, 8) + sblsh(str, 1, 0)
-	return signed and (MIN_SIGNED_LONG + v) or v
+	local v = sblsh(str, 1, 24) + sblsh(str, 2, 16) + sblsh(str, 3, 8) + sblsh(str, 4, 0)
+	return signed and v or (MAX_SIGNED_LONG + v + 1)
 end
 
 function short2str(value, signed)
@@ -72,8 +72,9 @@ function byte2str(value, signed)
 end
 
 function str2byte(str, signed)
-	local v = sblsh(str, 2, 0)
+	local v = sblsh(str, 1, 0)
 	return signed and (MIN_SIGNED_BYTE + v) or v
 end
 
-print(str2float( float2str(0.582) ) )
+print(MAX_UNSIGNED_LONG)
+print(str2int( int2str(MAX_UNSIGNED_LONG, false), false ) )
