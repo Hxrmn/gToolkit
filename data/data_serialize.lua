@@ -28,7 +28,9 @@ local function getValueString(t)
 		local int = math.floor(t) == t
 		if int then
 			if t <= MAX_SIGNED_BYTE and t >= MIN_SIGNED_BYTE then return "B" .. byte2str(t, true)
+			elseif t >= 0 and t <= MAX_UNSIGNED_BYTE then return "C" .. byte2str(t, false) 
 			elseif t <= MAX_SIGNED_SHORT and t >= MIN_SIGNED_SHORT then return "W" .. short2str(t, true)
+			elseif t >= 0 and t <= MAX_UNSIGNED_SHORT then return "D" .. short2str(t, false) 
 			elseif t <= MAX_SIGNED_LONG and t >= MIN_SIGNED_LONG then return "I" .. int2str(t, true)
 			elseif t >= 0 and t <= MAX_UNSIGNED_LONG then return "U" .. int2str(t, false)
 			else return "F" .. str2float(t)
@@ -74,7 +76,9 @@ local function getStringValue(str)
 		return t, data
 	elseif ttype == 'N' then return nil, data
 	elseif ttype == 'B' then return str2byte(data, true), string.sub(data,2,string.len(data))
+	elseif ttype == 'C' then return str2byte(data, false), string.sub(data,2,string.len(data))
 	elseif ttype == 'W' then return str2short(data, true), string.sub(data,3,string.len(data))
+	elseif ttype == 'D' then return str2short(data, false), string.sub(data,3,string.len(data))
 	elseif ttype == 'I' then return str2int(data, true), string.sub(data,5,string.len(data))
 	elseif ttype == 'U' then return str2int(data, false), string.sub(data,5,string.len(data))
 	elseif ttype == 'F' then return str2float(data), string.sub(data,5,string.len(data))
@@ -128,7 +132,3 @@ function deserialize(str, binary)
 	end
 
 end
-
-local t = deserialize( serialize({"Hello", "world", 12, 6500}) )
-
-PrintTable( t )
