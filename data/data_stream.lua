@@ -43,7 +43,13 @@ function OUT:WriteBit(v)
 end
 
 function OUT:WriteBits(v, bits)
-	if not self.bitstream then error("buffer is not a bitstream") end
+	if not self.bitstream then
+		if bits > 0 then self.buffer = self.buffer .. string.char(band(v, 0xFF)) end
+		if bits > 8 then self.buffer = self.buffer .. string.char(band(rshift(v,8), 0xFF)) end
+		if bits > 16 then self.buffer = self.buffer .. string.char(band(rshift(v,16), 0xFF)) end
+		if bits > 24 then self.buffer = self.buffer .. string.char(band(rshift(v,24), 0xFF)) end
+		return
+	end
 	if bits > 32 or bits <= 0 then return end
 	while bits > 0 do
 		self:WriteBit(band(v, 1))
@@ -100,7 +106,14 @@ function IN:ReadBit()
 end
 
 function IN:ReadBits(bits)
-	if not self.bitstream then error("buffer is not a bitstream") end
+	if not self.bitstream then 
+		local v = 0
+		if bits > 0 then v = v + self:ReadStr(1):byte(1) end
+		if bits > 8 then v = v + lshift(self:ReadStr(1):byte(1),8) end
+		if bits > 16 then v = v + lshift(self:ReadStr(1):byte(1),16) end
+		if bits > 24 then v = v + lshift(self:ReadStr(1):byte(1),24) end
+		return v
+	end
 	if bits > 32 or bits <= 0 then return 0 end
 
 	local m = bits

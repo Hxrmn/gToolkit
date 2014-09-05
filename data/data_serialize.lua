@@ -6,7 +6,7 @@ module("zdata", package.seeall)
 --Coded by Zak Blystone
 
 local ENTITY_BITS = 12
-USE_BITSTREAM = true
+local USE_BITSTREAM = true
 
 DT_NULL = 0
 DT_BYTE = 1
@@ -267,24 +267,3 @@ function deserialize(str, binary)
 	return getStringValue(vin)	
 
 end
-
-local tab = {}
-for k,v in pairs(ents.GetAll()) do
-	table.insert(tab, v:GetClass())
-end
-
-local ser = serialize(tab, false)
-local dser = deserialize(ser, false)
-
-PrintTable(dser)
-
-print(print(ser))
-
-print("DATA SIZE: " .. string.len(ser))
-
-local s = ""
-for k,v in pairs(ents.GetAll()) do
-	s = s .. v:GetClass()
-end
-
-print("ORIG DATA SIZE: " .. string.len(s))
