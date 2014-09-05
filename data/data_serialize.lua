@@ -46,6 +46,13 @@ end
 
 DT_STATUSBITS = 4
 
+local stringMap = {}
+
+local function initStringMap()
+	stringMap.strings = {}
+	stringMap.hash = {}
+end
+
 local function getValueString(t, buf)
 	local ttype = type(t)
 
@@ -112,9 +119,14 @@ local function getValueString(t, buf)
 		end
 	elseif ttype == "string" then
 		buf:WriteBits(DT_STRING, DT_STATUSBITS)
-		local l = string.len(t)
-		getValueString(l, buf)
-		buf:WriteStr(t)
+		if stringMap.hash[t] then
+			getValueString(stringMap.hash[t], buf)
+		else
+			table.insert(stringMap.strings, t)
+			local id = #stringMap.strings
+			stringMap.hash[t] = id
+			getValueString(id-1, buf)
+		end
 	else
 		buf:WriteBits(DT_NULL, DT_STATUSBITS)
 	end
@@ -165,14 +177,28 @@ local function getStringValue(buf)
 		local index = buf:ReadBits(ENTITY_BITS)
 		return ents.GetByIndex(index)
 	elseif ttype == DT_STRING then
-		local l = getStringValue(buf)
-		local s = buf:ReadStr(l)
-		return s
+		local id = getStringValue(buf) + 1
+		return stringMap.strings[id]
 	end
 end
 
 function serialize(t, binary)
 	local vout = out_stream(USE_BITSTREAM)
+	initStringMap()
+	getValueString(t, out_stream(USE_BITSTREAM))
+
+	local map = ""
+	for k,v in pairs(stringMap.strings) do map = map .. v .. "\0" end
+
+	local lzwmap = lzw_encode(map)
+	if string.len(lzwmap) < string.len(map) then
+		getValueString(string.len(lzwmap), vout)
+		vout:WriteStr('C' .. lzwmap)
+	else
+		getValueString(string.len(map), vout)
+		vout:WriteStr('R' .. map)
+	end
+
 	getValueString(t, vout)
 
 	local vstr = vout:GetString()
@@ -215,11 +241,34 @@ function deserialize(str, binary)
 	elseif mode == 'R' then
 		vin:LoadString(str)	
 	end
+
+	local mapsize = getStringValue(vin)
+	local map = ""
+	local mapmode = vin:ReadStr(1)
+	if mapmode == 'C' then
+		map = lzw_decode(vin:ReadStr(mapsize))
+	elseif mapmode == 'R' then
+		map = vin:ReadStr(mapsize)
+	end
+
+	local term = 0
+
+	initStringMap()
+	local index = 1
+	while index do
+		index = string.find(map,'\0')
+		if index then
+			local s = string.sub(map, 1, index-1)
+			map = string.sub(map, index+1)
+			table.insert(stringMap.strings, s)
+		end
+	end
+
 	return getStringValue(vin)	
 
 end
 
---[[local tab = {}
+local tab = {}
 for k,v in pairs(ents.GetAll()) do
 	table.insert(tab, v:GetClass())
 end
@@ -238,4 +287,4 @@ for k,v in pairs(ents.GetAll()) do
 	s = s .. v:GetClass()
 end
 
-print("ORIG DATA SIZE: " .. string.len(s))]]
+print("ORIG DATA SIZE: " .. string.len(s))
